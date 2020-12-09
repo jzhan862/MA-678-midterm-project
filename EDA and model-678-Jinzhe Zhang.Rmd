@@ -1,0 +1,169 @@
+---
+title: "Jinzhe Zhang MA678 Report"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# load packages
+library(stringr)
+library(lubridate)
+library(ggplot2)
+library(ggmap)
+library(maps)
+library(mapdata)
+library(tidyr)
+library(tidytext)
+library(ggraph)
+library(widyr)
+library(wordcloud)
+library(RColorBrewer)
+library(knitr)
+library(stats)
+library(arm)
+library(tidyverse)
+library(dplyr)
+library(lme4)
+library(plotly)
+library(sentimentr)
+library(VGAM)
+library(wesanderson)
+library(rstanarm)
+library(igraph)
+library(tibble)
+library(rjson)
+library(MASS)
+```
+
+#Abstract
+For this project, I converted the Yelp data Jpson data set by using Panda package in Python, cleaning and organizing the data in R.
+My data set was loaded from the Yelp academic data set , the subset of data contain 5775 restaurants with 13 business attributes, which is used to figure out what factors influence the rating and tried to predict the rating by review text. After that I made some EDA and several models.
+
+
+#Introduction
+The word_frequency.csv contain the words that are frequently used when reviewing a Japanese Restaurant.
+The rating.csv contain the information of 5775 restaurants with some attributes of each of them.
+The meaning of business attributes can be interpreted very intuitively.
+
+1.Due to the original Yelp data Jpson files are too large to upload, I can only upload the link of downloading path of Yelp data files and the .csv files which are used to EDA and Model. I randomly took the 5775 restaurants from the Yelp files and and extracted the attributes of each of them.
+2.I tried to do the EDA part in many different angels such as price range and Noise level.
+3.I made a text analysis to show the hot words of reviewing the Japanese restaurants.
+4.I fit a linear regression and logistic regression model to find which factors are more crucial to get the higher rating.
+5.The validation of the model 
+
+
+
+```{r code, echo=FALSE}
+# load the data
+rating <- read.csv("rating.csv",header = T, stringsAsFactors = F)
+word_freq <- read.csv("word_freq.csv",header = T, stringsAsFactors = F)
+
+```
+
+# Restaurants EDA
+
+First of all, we are interested in the ratings for these restaurants. 
+I used the ggplot to should the distribution of those ratings for the restaurants.
+
+```{r, echo = FALSE, warning=FALSE}
+
+p1 = ggplot(rating)+
+  geom_density(aes(rating, fill = "tomato3", color ="salmon"))+
+  geom_vline(xintercept = 3.5, linetype= 2, color = "white")+
+  labs(title = "General Ratings on Restaurants")+
+    xlab("Rating")+
+  ylab("Density")+
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+p1
+```
+
+Next, the distribution of price ranges for these restaurants are shown below,
+
+```{r, echo = FALSE, warning=FALSE}
+p2 = ggplot(rating)+
+  geom_bar(aes(RestaurantsPriceRange2, fill = "tomato3", color ="salmon"))+
+  labs(title = "Price distribution on Restaurants")+
+  xlab("Restaurants Price")+
+  ylab("Frequency")+
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none") 
+p2
+```
+
+Then, what happens if we divided these restaurants into different groups? We plan to divide them into disparate groups based on free parking and the noise level. 
+
+```{r, echo = FALSE, warning=FALSE}
+rating1 = rating[complete.cases(rating$business.parking),]
+rating1$business.parking <- as.factor(rating1$business.parking)
+p4 = ggplot(rating1, aes(x=rating, fill = business.parking))+
+ geom_density(alpha = 0.2)+
+  labs(title = "Ratings on Restaurants")+
+  xlab("Rating")+
+  ylab("Density")+
+  theme(plot.title = element_text(hjust = 0.5)) 
+p4
+```
+
+```{r, echo = FALSE, warning=FALSE}
+rating1 = rating[complete.cases(rating$NoiseLevel),]
+p3 = ggplot(rating1, aes(x=rating, colour = NoiseLevel))+
+  geom_density()+
+  labs(title = "Ratings on Restaurants")+
+  xlab("Rating")+
+  ylab("Density")+
+  theme(plot.title = element_text(hjust = 0.5)) 
+p3
+```
+
+# Text analysis
+
+We also investigate what words are frequently used when reviewing a Japanese Restaurant? 
+
+```{r, echo = FALSE, warning=FALSE}
+word_freq$word = toupper(word_freq$word)
+word_freq %>%
+  with(wordcloud(word, n, max.words = 50,colors=brewer.pal(8, "Dark2"),random.order=FALSE,rot.per=0.35))
+
+```
+
+Of course, we expected SUSHI and SASHIMI. However, no RAMEN! It surprises me.
+
+# Model analysis & Method
+
+We want to investigate the factors affecting the rating of restaurants. We have totally 5775 different restaurants, but we have to delete 2016 observations due to the lack of essential variables.When I tried to use the logistic regression, I re-scaled the rating to the (0,1) by dividing rating by 10. We select our model using AIC and Adjusted R-squared as criteria. 
+
+```{r, echo = FALSE, warning=FALSE}
+reg1 = lm(rating~RestaurantsPriceRange2+business.parking+NoiseLevel, data = rating)
+reg2 = lm(rating~RestaurantsPriceRange2+business.parking+NoiseLevel+WiFi, data = rating)
+reg3 = glm(rating~RestaurantsPriceRange2+business.parking+NoiseLevel+RestaurantsReservations, data = rating)
+rating$rating=(rating$rating)/10
+reg4 = glm(rating~RestaurantsPriceRange2+business.parking+NoiseLevel,family = "binomial", data = rating)
+
+summary(reg1)
+summary(reg2)
+summary(reg3)
+summary(reg4)
+
+
+par(mfrow=c(2,2))
+
+binnedplot(fitted(reg1),resid(reg1),main = "rating~price+park+noise")
+
+binnedplot(fitted(reg2),resid(reg2),main = "rating~price+park+noise+WiFi")
+
+binnedplot(fitted(reg3),resid(reg3),main = "rating~rating~price+park+noise+reserve")
+
+binnedplot(fitted(reg4),resid(reg4),main = "rating~price+park+noise")
+
+```
+# Result
+
+Based on our regression result, we can see the model did a bad job on fitting and predicting by summarizing the fitting information. The Adjusted R-squared is much lower than the expectation. However, some sign of coefficients follow our intuition, I find that the parking and noise level may be a more critical factor. 
+
+The interpretation of linear regression：
+The intercept shows that the average of the rating is about the 3.3 which aligns my EDA of rating distribution. On average, the restaurant with business parking will have a 0.137 higher rating. The restaurants with higher noise levels may get a rating penalty, while the quiet restaurants will win a rating bonus. However, the restaurant's rating is not determined by its price range because its coefficient is not significant. In summary, we can conclude that if a restaurant wants to get a higher rating, it should provide a quiet place and free business parking. Besides, it seems that the prices will not influence the rating of a restaurant too much.
+
+The interpretation of logistic regression:
+To use the logistic regression, I convert the data of rating into (0.1-0.5) while it is original on 1-5 scale. By looking at the information of the fitted model the result is similar with the linear regression.The coefficients of parking and NoiseLevelloud quiet show the positive response to the rating while the restaurantsPriceRange2 does not has significiant influence on the rating.
